@@ -63,33 +63,40 @@ Elevator::Start()
 {
 	lock->Acquire();
 
+	//loop forever
 	while (1) {
 
+		//print current floor and direction
 		printf("curFloor %d\n", curFloor);
 		printf("curDirection %d\n", curDirection);
 
+		//empty elevator, if no one leaving do nothing
 		EmptyElevator();
-
+	
+		//wait while elevator is not in use
 		while (!totalWaitingToGoUp && !totalWaitingToGoDown && !totalWaitingToLeave) {
 			printf("no one using the elevator, going to sleep\n");
 			elevatorWaiting->Wait(lock);
 			printf("elevator requested, waking up\n");
 		}
 
+		//check if we need to turn around
 		if (!CheckInFront()) {
 			ChangeDirection();
 		}
 
+		//fill elevator, if no one boarding do nothing
 		FillElevator();
-	
+
+		//check to make sure we don't go through ceiling or floor	
 		if (curFloor == (NUM_FLOORS-1) && curDirection == 1) {
-			printf("should change directions\n");
 			curDirection = -1;
 		}
 		if	(curFloor == 0 && curDirection == -1) {
 			curDirection = 1;
 		}
 
+		//go to next floor
 		Move(curDirection);
 
 		printf("=================================================\n");
@@ -101,12 +108,14 @@ Elevator::Start()
 int
 Elevator::CheckInFront()
 {
+	//if someone on the elevator we need to let them off
 	if (totalWaitingToLeave) {
 		return 1;
 	}
+	//check if someone waiting to go up or waiting to come down in current direction
 	int tempFloor = curFloor;
 	while (tempFloor >= 0 && tempFloor <= (NUM_FLOORS-1)) {
-		//don't check opposite direction on current floor
+		//don't check opposite direction on current floor (we want to change direction to pick them up)
 		if (tempFloor == curFloor) {
 			if (curDirection == 1) {
 				if (numWaitingToGoUp[tempFloor]) {
@@ -125,6 +134,7 @@ Elevator::CheckInFront()
 		}
 		tempFloor += curDirection;
 	}
+	//otherwise change direction
 	return 0;
 }
 
@@ -139,21 +149,19 @@ Elevator::ChangeDirection()
 }
 
 void
-Elevator::Move(int direction)
+Elevator::Move()
 {
+	//emulate time it takes to move
 	for (unsigned int i = 0; i < NUM_LOOPS; i++) {
 		IntStatus oldLevel = interrupt->SetLevel(IntOff);
 		(void) interrupt->SetLevel(oldLevel);
 	}
 
-	if (direction == 1) {
-		curFloor++;
-	} else {
-		curFloor--;
-	}
+	curFloor += curDirection;
 
 	printf("moving to floor:%d\n", curFloor);
 
+	//make sure we aren't going through the ceiling or ground
 	ASSERT(curFloor >= 0);
 	ASSERT(curFloor < NUM_FLOORS);
 }
@@ -161,9 +169,12 @@ Elevator::Move(int direction)
 void
 Elevator::EmptyElevator()
 {
+	//if no one waiting do nothing
 	if (numWaitingToLeave[curFloor] > 0) {
+		//wake up everyone so they can leave
 		waitingToLeave[curFloor]->Broadcast(lock);
 		printf("elevator waiting for %d to exit\n", numWaitingToLeave[curFloor]);
+		//wait until everyone leaves
 		while (numWaitingToLeave[curFloor] > 0) {
 			elevatorWaiting->Wait(lock);
 			printf("everyone exited current floor\n");
@@ -183,7 +194,7 @@ Elevator::FillElevator()
 				printf("everyone on current floor is on the elevator\n");
 			}
 		}
-	} else {	//going down
+	} else {				//going down
 		if (numWaitingToGoDown[curFloor] > 0) {
 			waitingToGoDown[curFloor]->Broadcast(lock);
 			printf("waiting for %d to board on current floor\n", numWaitingToGoDown[curFloor]);
