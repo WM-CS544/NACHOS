@@ -157,8 +157,9 @@ EProcess(int arg)
 				toFloor = 1;
 			}
 		}
-		printf("%d %d\n", atFloor, toFloor);
+		printf("+++++ new passenger: at floor: %d, to floor: %d\n", atFloor, toFloor);
 		E->ArrivingGoingFromTo(atFloor, toFloor);
+		printf("----- thread %d arrived at floor\n", arg);
 	}
 }
 

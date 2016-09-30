@@ -70,26 +70,18 @@ Elevator::Start()
 
 		EmptyElevator();
 
-		for (unsigned int i = 0; i < sizeof(numWaitingToGoDown)/sizeof(numWaitingToGoDown[0]); i++) {
-			//printf("numWaitingToGoDown: %d\n", numWaitingToGoUp[i]);
-		}
-
 		while (!totalWaitingToGoUp && !totalWaitingToGoDown && !totalWaitingToLeave) {
+			printf("no one using the elevator, going to sleep\n");
 			elevatorWaiting->Wait(lock);
-			printf("elevator waking up\n");
-			//printf("%d %d %d\n", totalWaitingToGoUp, totalWaitingToGoDown, totalWaitingToLeave);
+			printf("elevator requested, waking up\n");
 		}
 
 		if (!CheckInFront()) {
 			ChangeDirection();
 		}
 
-		printf("after check in front\n");
-		
 		FillElevator();
 	
-		printf("after fillElevator\n");
-
 		if (curFloor == (NUM_FLOORS-1) && curDirection == 1) {
 			printf("should change directions\n");
 			curDirection = -1;
@@ -100,7 +92,7 @@ Elevator::Start()
 
 		Move(curDirection);
 
-		printf("------------------------------------\n");
+		printf("=================================================\n");
 	}
 
 	lock->Release();
@@ -110,7 +102,6 @@ int
 Elevator::CheckInFront()
 {
 	if (totalWaitingToLeave) {
-		printf("someone waiting to leave%d\n", totalWaitingToLeave);
 		return 1;
 	}
 	int tempFloor = curFloor;
@@ -119,19 +110,16 @@ Elevator::CheckInFront()
 		if (tempFloor == curFloor) {
 			if (curDirection == 1) {
 				if (numWaitingToGoUp[tempFloor]) {
-					printf("someone waiting on cur floor\n");
 					return 1;
 				}
 			} else {
 				if (numWaitingToGoDown[tempFloor]) {
-					printf("someone waiting on cur floor\n");
 					return 1;
 				}
 			}
 		//someone waiting in current direction
 		} else {
 			if (numWaitingToGoUp[tempFloor] || numWaitingToGoDown[tempFloor]) {
-				printf("someone waiting in cur direction\n");
 				return 1;
 			}
 		}
@@ -175,9 +163,10 @@ Elevator::EmptyElevator()
 {
 	if (numWaitingToLeave[curFloor] > 0) {
 		waitingToLeave[curFloor]->Broadcast(lock);
+		printf("elevator waiting for %d to exit\n", numWaitingToLeave[curFloor]);
 		while (numWaitingToLeave[curFloor] > 0) {
 			elevatorWaiting->Wait(lock);
-			printf("elevator woke up after empty\n");
+			printf("everyone exited current floor\n");
 		}
 	}
 }
@@ -187,22 +176,20 @@ Elevator::FillElevator()
 {
 	if (curDirection == 1) { //going up
 		if (numWaitingToGoUp[curFloor] > 0) {
-			waitingToGoUp[curFloor]->Signal(lock);
 			waitingToGoUp[curFloor]->Broadcast(lock);
-			printf("number waiting at current floor %d\n", numWaitingToGoUp[curFloor]);
+			printf("waiting for %d to board on current floor\n", numWaitingToGoUp[curFloor]);
 			while (numWaitingToGoUp[curFloor] > 0) {
 				elevatorWaiting->Wait(lock);
-				printf("elevator woke up after fill\n");
+				printf("everyone on current floor is on the elevator\n");
 			}
 		}
 	} else {	//going down
 		if (numWaitingToGoDown[curFloor] > 0) {
-			waitingToGoDown[curFloor]->Signal(lock);
 			waitingToGoDown[curFloor]->Broadcast(lock);
-			printf("number waiting at current floor %d\n", numWaitingToGoDown[curFloor]);
+			printf("waiting for %d to board on current floor\n", numWaitingToGoDown[curFloor]);
 			while (numWaitingToGoDown[curFloor] > 0) {
 				elevatorWaiting->Wait(lock);
-				printf("elevator woke up after fill\n");
+				printf("everyone on current floor is on the elevator\n");
 			}
 		}
 	}
@@ -225,7 +212,6 @@ Elevator::ArrivingGoingFromTo(int atFloor, int toFloor)
 
 	if (toFloor > atFloor) {	//what if same floor
 		do {
-			printf("waiting at floor\n");
 			waitingToGoUp[atFloor]->Wait(lock);
 		} while (curFloor != atFloor);
 		printf("getting on elevator\n");
@@ -233,7 +219,6 @@ Elevator::ArrivingGoingFromTo(int atFloor, int toFloor)
 		numWaitingToGoUp[atFloor]--;
 	} else {
 		do {
-			printf("waiting at floor\n");
 			waitingToGoDown[atFloor]->Wait(lock);
 		} while (curFloor != atFloor);
 		printf("getting on elevator\n");
@@ -245,27 +230,23 @@ Elevator::ArrivingGoingFromTo(int atFloor, int toFloor)
 	totalWaitingToLeave++;
 	if (curDirection == 1) {
 		if (!numWaitingToGoUp[atFloor]) {
-			printf("everyone on elevator\n");
 			elevatorWaiting->Signal(lock);
 		}
 	} else {
 		if (!numWaitingToGoDown[atFloor]) {
-			printf("everyone on elevator\n");
 			elevatorWaiting->Signal(lock);
 		}
 	}
 
-	fprintf(stderr, "numWaitingToLeave %d\n", numWaitingToLeave[toFloor]);
-
 	while (curFloor != toFloor) {
 		waitingToLeave[toFloor]->Wait(lock);
+		printf("getting off elevator\n");
 	}
 
 	totalWaitingToLeave--;
 	numWaitingToLeave[toFloor]--;
 
 	if (!numWaitingToLeave[toFloor]) {
-		printf("everyone off elevator\n");
 		elevatorWaiting->Signal(lock);
 	}
 
