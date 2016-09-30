@@ -59,23 +59,25 @@ ThreadTest()
 #include "resmanager.h" 
 #include "prodcon.h"
 #include "elevator.h"
+#include "traffic_manager.h"
 #include <new>
 
 char pname[20][5]; 
+Thread *t[20];
 
 //Resource Manager Variables
-Thread *t[20];      // The processes contending for resource units. 
 ResManager *RM; 
 int used=0;         // Keep track of units in use so we can check 
                     // validity of the system. 
 
 //Prodcon Variables
-Thread *prodconT[20];
 ProdCon *PC;
 
 //Elevator Variables
-Thread *elevatorT[20];
 Elevator *E;
+
+//Bridge Variables
+TrafficManager *TM;
 
 
 void 
@@ -126,10 +128,18 @@ PCProcess(int arg)
 	if ((arg % 2)) {
 		while (1) {
 			PC->Produce();
+			for (int i=0; i<delay; i++){ 
+				interrupt->SetLevel(IntOff); 
+				interrupt->SetLevel(IntOn); 
+			} 
 		}
 	} else {
 		while (1) {
 			PC->Consume();
+			for (int i=0; i<delay; i++){ 
+				interrupt->SetLevel(IntOff); 
+				interrupt->SetLevel(IntOn); 
+			} 
 		}	   
 	}
 }
@@ -163,33 +173,73 @@ EProcess(int arg)
 	}
 }
 
+void
+OneVehicle(int pid)
+{
+	int i, arrival_delay, crossing_time, direction;
+
+	arrival_delay = 1+(int) (100000.0*rand()/(RAND_MAX+1.0));
+	crossing_time = 1+(int) (100000.0*rand()/(RAND_MAX+1.0));
+	direction = rand() % 2; // Generate zero or one "randomly" 
+
+	//printf("Car %d going in the %d direction. \n", pid, direction); 
+
+	for (i = 0; i < arrival_delay; i++)
+	{
+		interrupt->SetLevel(IntOff);
+		interrupt->SetLevel(IntOn);
+	}
+
+	TM->ArriveBridge(direction, pid);
+	TM->CrossBridge(direction, pid);
+
+	for (i = 0; i < crossing_time; i++)
+	{
+		interrupt->SetLevel(IntOff);
+		interrupt->SetLevel(IntOn);
+	}
+	TM->ExitBridge(direction, pid);
+}
+
 void 
-ThreadTest() 
+ThreadTest(long problem) 
 { 
 	int i; 
 
-	/*DEBUG('t', "Starting the RESOURCE MANAGER System"); 
-	// Instantiate the resource manager. 
-	RM = new(std::nothrow) ResManager; 
-	// Instantiate the 20 threads. 
-	for (i=0; i<20; i++) { 
-		sprintf(pname[i], "p%d", i); 
-		t[i] = new(std::nothrow) Thread(pname[i]); 
-		t[i]->Fork(RMProcess,i); 
-	}*/
-	/*DEBUG('t', "Starting the PRODUCER CONSUMER System");
-	PC = new(std::nothrow) ProdCon;
-	for (i=0; i<2; i++) {
-		sprintf(pname[i], "p%d", i); 
-		prodconT[i] = new(std::nothrow) Thread(pname[i]);
-		prodconT[i]->Fork(PCProcess, i);
-	}*/
-	DEBUG('t', "Starting the ELEVATOR System");
-	E = new(std::nothrow) Elevator;
-	for (i=0; i<20; i++) {
-		sprintf(pname[i], "p%d", i); 
-		elevatorT[i] = new(std::nothrow) Thread(pname[i]);
-		elevatorT[i]->Fork(EProcess, i);
+	if (problem == 1) {				//resource manager
+		DEBUG('t', "Starting the RESOURCE MANAGER System"); 
+		// Instantiate the resource manager. 
+		RM = new(std::nothrow) ResManager; 
+		// Instantiate the 20 threads. 
+		for (i=0; i<20; i++) { 
+			sprintf(pname[i], "p%d", i); 
+			t[i] = new(std::nothrow) Thread(pname[i]); 
+			t[i]->Fork(RMProcess,i); 
+		}
+	} else if (problem == 2) {		//producer consumer
+		DEBUG('t', "Starting the PRODUCER CONSUMER System");
+		PC = new(std::nothrow) ProdCon;
+		for (i=0; i<2; i++) {
+			sprintf(pname[i], "p%d", i); 
+			t[i] = new(std::nothrow) Thread(pname[i]);
+			t[i]->Fork(PCProcess, i);
+		}
+	} else if (problem == 3) {		//elevator
+		DEBUG('t', "Starting the ELEVATOR System");
+		E = new(std::nothrow) Elevator;
+		for (i=0; i<20; i++) {
+			sprintf(pname[i], "p%d", i); 
+			t[i] = new(std::nothrow) Thread(pname[i]);
+			t[i]->Fork(EProcess, i);
+		}
+	} else {						//bridge
+		DEBUG('t', "Starting the TRAFFIC MANAGER System");
+		TM = new(std::nothrow) TrafficManager;
+		for (i=0; i<20; i++) {
+			sprintf(pname[i], "p%d", i); 
+			t[i] = new(std::nothrow) Thread(pname[i]);
+			t[i]->Fork(OneVehicle, i);
+		}
 	}
 	// Having spawned 20 threads, the initial thread terminates. 
 } 

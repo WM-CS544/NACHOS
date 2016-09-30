@@ -97,7 +97,7 @@ Elevator::Start()
 		}
 
 		//go to next floor
-		Move(curDirection);
+		Move();
 
 		printf("=================================================\n");
 	}
@@ -151,15 +151,17 @@ Elevator::ChangeDirection()
 void
 Elevator::Move()
 {
+	printf("moving to floor:%d\n", curFloor+curDirection);
+
 	//emulate time it takes to move
+	lock->Release();
 	for (unsigned int i = 0; i < NUM_LOOPS; i++) {
 		IntStatus oldLevel = interrupt->SetLevel(IntOff);
 		(void) interrupt->SetLevel(oldLevel);
 	}
+	lock->Acquire();
 
 	curFloor += curDirection;
-
-	printf("moving to floor:%d\n", curFloor);
 
 	//make sure we aren't going through the ceiling or ground
 	ASSERT(curFloor >= 0);
@@ -210,6 +212,7 @@ void
 Elevator::ArrivingGoingFromTo(int atFloor, int toFloor)
 {
 	lock->Acquire();
+	printf("passenger acquired lock\n");
 
 	if (toFloor > atFloor) {	//what if same floor
 		totalWaitingToGoUp++;
